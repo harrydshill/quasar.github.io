@@ -194,7 +194,6 @@
             border-radius: 0.5rem;
             text-decoration: none;
             transition: opacity 0.2s;
-            cursor: pointer;
         }
         .btn:hover {
             opacity: 0.9;
@@ -202,6 +201,7 @@
     </style>
 </head>
 <body>
+    <!-- Header -->
     <nav>
         <div class="container nav-content">
             <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -211,6 +211,7 @@
         </div>
     </nav>
 
+    <!-- Tabs -->
     <div class="container" style="padding-top: 1.5rem;">
         <div class="tabs">
             <button class="tab active" onclick="switchTab('overview')">Overview</button>
@@ -219,7 +220,9 @@
         </div>
     </div>
 
+    <!-- Overview Tab -->
     <div id="overview" class="tab-content active">
+        <!-- Hero -->
         <section>
             <div class="container">
                 <div class="hero-grid">
@@ -237,6 +240,7 @@
             </div>
         </section>
 
+        <!-- Features -->
         <section class="features-section">
             <div class="container">
                 <h2 class="text-center" style="margin-bottom: 3rem;">Key Features</h2>
@@ -269,6 +273,7 @@
             </div>
         </section>
 
+        <!-- Product Image -->
         <section>
             <div class="container">
                 <div class="content-grid">
@@ -286,6 +291,7 @@
             </div>
         </section>
 
+        <!-- App Section -->
         <section class="features-section">
             <div class="container">
                 <div class="content-grid">
@@ -317,6 +323,7 @@
             </div>
         </section>
 
+        <!-- CTA -->
         <section>
             <div class="container text-center" style="max-width: 56rem;">
                 <h2 style="font-size: 2.5rem; margin-bottom: 1rem;">Coming Soon</h2>
@@ -327,6 +334,7 @@
         </section>
     </div>
 
+    <!-- Product Tab -->
     <div id="product" class="tab-content">
         <section>
             <div class="container" style="max-width: 800px;">
@@ -359,14 +367,16 @@
         </section>
     </div>
 
+    <!-- Control Tab -->
     <div id="control" class="tab-content">
         <section>
             <div class="container text-center" style="max-width: 800px;">
-                <a href__="UI/control.html" class="btn">Go!</a>
+                <a href__="https://google.com" target="_blank" rel="noopener noreferrer" class="btn">Go!</a>
             </div>
         </section>
     </div>
 
+    <!-- Footer -->
     <footer>
         <div class="container text-center text-gray-500">
             <p>© 2026 PLACEHOLDER_NAME. All rights reserved.</p>
@@ -375,14 +385,18 @@
 
     <script>
         function switchTab(tabName) {
+            // Hide all tab contents
             const contents = document.querySelectorAll('.tab-content');
             contents.forEach(content => content.classList.remove('active'));
             
+            // Remove active from all tabs
             const tabs = document.querySelectorAll('.tab');
             tabs.forEach(tab => tab.classList.remove('active'));
             
+            // Show selected tab content
             document.getElementById(tabName).classList.add('active');
             
+            // Mark selected tab as active
             event.target.classList.add('active');
         }
     </script>
