@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sources Of Sound</title>
+    <style>
+        /* --- CSS VARIABLES (Theming Engine) --- */
+        :root {
+            /* Default App Theme */
+            --app-bg: #121212;
+            --sidebar-bg: #1e1e1e;
+            --text-main: #ffffff;
+            --accent-color: #0066ff;
+            
+            /* Dynamic Pedal Theme Variables */
+            --pedal-face: #333333;
+            --knob-body: #222222;
+            --knob-indicator: #ff4444;
+            --knob-text: #ffffff;
+        }
+
+        body { font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; margin: 0; background: var(--app-bg); color: var(--text-main); transition: background 0.3s; }
+        
+        /* --- LAYOUT --- */
+        #sidebar { width: 260px; background: var(--sidebar-bg); padding: 20px; border-right: 1px solid #333; display: flex; flex-direction: column; transition: background 0.3s; }
+        
+        .device-item { 
+            padding: 10px 12px; background: rgba(255,255,255,0.05); margin-bottom: 8px; 
+            border-radius: 4px; border: 1px solid transparent; 
+            display: flex; justify-content: space-between; align-items: center;
+            transition: 0.2s;
+        }
+        .device-item:hover { background: rgba(255,255,255,0.08); }
+        .device-item.active { border-color: var(--accent-color); background: rgba(255,255,255,0.1); }
+        
+        .device-name-span { cursor: pointer; flex-grow: 1; }
+        .device-del-btn { 
+            opacity: 0; cursor: pointer; color: #666; font-size: 14px; padding: 4px;
+            transition: 0.2s;
+        }
+        .device-item:hover .device-del-btn { opacity: 1; }
+        .device-del-btn:hover { color: #ff4444; transform: scale(1.2); }
+
+        .spacer { flex-grow: 1; }
+
+        #main { flex-grow: 1; display: flex; flex-direction: column; align-items: center; padding: 20px; position: relative; }
+
+        /* --- SETTINGS MENU --- */
+        #settings-btn { position: absolute; top: 20px; right: 20px; background: none; border: none; color: var(--text-main); font-size: 24px; cursor: pointer; z-index: 100; }
+        #settings-panel {
+            position: absolute; top: 60px; right: 20px; width: 220px;
+            background: var(--sidebar-bg); border: 1px solid #444;
+            padding: 15px; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            display: none; z-index: 99;
+        }
+        #settings-panel.open { display: block; }
+        .theme-select { width: 100%; padding: 8px; margin-bottom: 10px; background: #333; color: white; border: none; border-radius: 4px; }
+        label { font-size: 12px; color: #aaa; display: block; margin-bottom: 4px; }
+
+        /* --- EDITABLE TITLES --- */
+        [contenteditable]:focus { outline: none; border-bottom: 1px solid var(--accent-color); }
+        #pedal-title { cursor: text; border-bottom: 1px solid transparent; transition: 0.2s; }
+        #pedal-title:hover { border-bottom: 1px dashed #555; }
+
+        /* --- PEDAL FACE --- */
+        #pedal-face {
+            width: 400px; height: 500px; background: var(--pedal-face); border-radius: 15px;
+            border: 6px solid rgba(0,0,0,0.3); display: grid;
+            grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
+            gap: 10px; padding: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            transition: background 0.5s ease; margin-top: 20px;
+        }
+
+        /* --- DRAG & DROP SLOTS --- */
+        .slot {
+            border: 1px solid transparent; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            position: relative;
+        }
+        .edit-mode .slot { border: 1px dashed rgba(255,255,255,0.2); }
+        .slot.drag-over { background: rgba(255, 68, 68, 0.2); border: 1px solid var(--accent-color); }
+
+        /* --- ADVANCED KNOB DESIGN --- */
+        .knob-container { position: relative; width: 80px; height: 80px; cursor: pointer; }
+        
+        /* The Rotating Part (Pointer) */
+        .knob-rotator {
+            width: 100%; height: 100%; border-radius: 50%;
+            background: var(--knob-body); 
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            position: absolute; top: 0; left: 0;
+            
+            /* THE PHYSICS: 
+               The transition is ALWAYS active now. 
+               This makes the knob "chase" the mouse cursor with a bounce.
+            */
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .knob-rotator::after {
+            content: ''; position: absolute; top: 5px; left: 50%;
+            width: 4px; height: 25px; background: var(--knob-indicator);
+            transform: translateX(-50%); border-radius: 2px;
+        }
+
+        /* The Static Part (Text) */
+        .knob-display {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; font-weight: bold; color: var(--knob-text);
+            pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+        }
+
+        /* Labels and Controls */
+        .knob-wrapper { display: flex; flex-direction: column; align-items: center; width: 100%; }
+        .knob-name { 
+            font-size: 11px; margin-bottom: 5px; font-weight: bold; 
+            text-transform: uppercase; letter-spacing: 1px; color: var(--text-main); 
+            cursor: text; border-bottom: 1px solid transparent;
+        }
+        .knob-name:hover { border-bottom: 1px dashed #666; }
+        
+        input[type=range] { width: 80px; margin-top: 5px; opacity: 0; position: absolute; height: 80px; cursor: ns-resize; } 
+
+        .toolbar { margin-top: 20px; display: flex; gap: 10px; }
+        button.btn { padding: 8px 16px; background: #333; border: 1px solid #555; color: white; cursor: pointer; border-radius: 4px; transition: 0.2s; }
+        button.btn:hover { background: #444; }
+        button.btn-primary { background: var(--accent-color); border: none; }
+        
+        /* Preset Items */
+        .preset-chip { 
+            display: inline-flex; align-items: center; background: #333; 
+            border-radius: 15px; padding: 5px 10px; margin: 3px; font-size: 12px; border: 1px solid #444; 
+        }
+        .preset-chip:hover { background: #444; }
+        .preset-name { cursor: pointer; margin-right: 8px; }
+        .preset-del { cursor: pointer; color: #ff6666; font-weight: bold; padding: 0 4px; }
+        .preset-del:hover { color: #ff0000; }
+
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <button id="settings-btn" onclick="toggleSettings()">⚙</button>
+    <div id="settings-panel">
+        <h4>Appearance</h4>
+        <label>Website Theme</label>
+        <select class="theme-select" onchange="setAppTheme(this.value)">
+            <option value="dark">Studio Dark</option>
+            <option value="light">Clean Lab</option>
+            <option value="cyber">Cyberpunk</option>
+        </select>
+        
+        <label>Pedal Finish (Saved per pedal)</label>
+        <select id="pedal-theme-select" class="theme-select" onchange="updateCurrentPedalTheme(this.value)">
+            <option value="classic">Classic Black</option>
+            <option value="gold">Vintage Gold</option>
+            <option value="surf">Surf Green</option>
+            <option value="hotpink">80s Neon</option>
+            <option value="tweed">Tweed</option>
+        </select>
+    </div>
+
+    <div id="sidebar">
+        <h3>🎛 Pedal Forge</h3>
+        <div id="device-list"></div>
+        <div class="spacer"></div>
+        <button class="btn" onclick="addNewPedal()">+ New Device</button>
+    </div>
+
+    <div id="main" class="hidden">
+        <h2 id="pedal-title" contenteditable="true" 
+            onblur="renamePedal(this.innerText)" 
+            onkeydown="handlePedalRenameKey(event)">Select a Pedal</h2>
+        
+        <div id="pedal-face">
+            </div>
+
+        <div class="toolbar">
+            <button id="editBtn" class="btn" onclick="toggleEditMode()">Layout: Locked</button>
+            <button class="btn" onclick="addKnob()">+ Add Knob</button>
+        </div>
+
+        <div style="margin-top: 20px; width: 100%; max-width: 400px;">
+            <h4>Presets</h4>
+            <div id="preset-list" style="display:flex; flex-wrap:wrap; min-height: 40px;"></div>
+            <button class="btn btn-primary" style="margin-top:10px; width:100%" onclick="savePreset()">Save Current Settings</button>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. DATA STATE ---
+        let pedals = [{ 
+            id: 1, 
+            name: "Blues Driver", 
+            theme: "gold", 
+            knobs: [
+                { id: 101, name: "Level", val: -45, pos: 1 },
+                { id: 102, name: "Tone", val: 0, pos: 2 },
+                { id: 103, name: "Gain", val: 90, pos: 3 }
+            ],
+            presets: [{ name: "Clean Boost", snapshot: [{ id: 101, val: 20, pos: 1 }, { id: 102, val: 0, pos: 2 }, { id: 103, val: -50, pos: 3 }] }] 
+        }];
+        
+        let activePedal = null;
+        let isEditMode = false;
+        let draggedKnobId = null;
+
+        // --- 2. THEME ENGINE ---
+        const appThemes = {
+            dark:  { bg: '#121212', sidebar: '#1e1e1e', text: '#fff', accent: '#ff4444' },
+            light: { bg: '#e0e0e0', sidebar: '#ffffff', text: '#222', accent: '#007bff' },
+            cyber: { bg: '#050510', sidebar: '#0a0a20', text: '#00ff9d', accent: '#ff00ff' }
+        };
+
+        const pedalThemes = {
+            classic: { face: '#333', knob: '#222', indicator: '#fff', text: '#fff' },
+            gold:    { face: '#d4af37', knob: '#4a3b10', indicator: '#fff', text: '#fff' },
+            surf:    { face: '#98ff98', knob: '#fff', indicator: '#333', text: '#333' },
+            hotpink: { face: '#ff007f', knob: '#111', indicator: '#00ff00', text: '#fff' },
+            tweed:   { face: '#b5a642', knob: '#5c4033', indicator: '#fff', text: '#fff' }
+        };
+
+        function setAppTheme(name) {
+            const t = appThemes[name];
+            const r = document.documentElement.style;
+            r.setProperty('--app-bg', t.bg);
+            r.setProperty('--sidebar-bg', t.sidebar);
+            r.setProperty('--text-main', t.text);
+            r.setProperty('--accent-color', t.accent);
+        }
+
+        function applyPedalTheme(themeName) {
+            const t = pedalThemes[themeName] || pedalThemes['classic'];
+            const r = document.documentElement.style;
+            r.setProperty('--pedal-face', t.face);
+            r.setProperty('--knob-body', t.knob);
+            r.setProperty('--knob-indicator', t.indicator);
+            r.setProperty('--knob-text', t.text);
+            
+            document.getElementById('pedal-theme-select').value = themeName;
+        }
+
+        function updateCurrentPedalTheme(newTheme) {
+            if(activePedal) {
+                activePedal.theme = newTheme;
+                applyPedalTheme(newTheme);
+            }
+        }
+
+        function toggleSettings() {
+            document.getElementById('settings-panel').classList.toggle('open');
+        }
+
+        // --- 3. UI RENDERING & PEDAL MANAGEMENT ---
+        function initSidebar() {
+            const list = document.getElementById('device-list');
+            list.innerHTML = '';
+            
+            pedals.forEach(p => {
+                let item = document.createElement('div');
+                item.className = `device-item ${activePedal?.id === p.id ? 'active' : ''}`;
+                
+                item.innerHTML = `
+                    <span class="device-name-span" onclick="selectPedal(${p.id})">${p.name}</span>
+                    <span class="device-del-btn" onclick="deletePedal(${p.id})">🗑️</span>
+                `;
+                
+                list.appendChild(item);
+            });
+        }
+
+        function selectPedal(id) {
+            activePedal = pedals.find(p => p.id === id);
+            
+            if(!activePedal) return;
+
+            document.getElementById('main').classList.remove('hidden');
+            document.getElementById('pedal-title').innerText = activePedal.name;
+            applyPedalTheme(activePedal.theme || 'classic');
+            renderPedalFace();
+            initSidebar();
+            renderPresets();
+        }
+
+        function addNewPedal() {
+            let name = prompt("Device Name:");
+            if(name) {
+                let p = { id: Date.now(), name: name, theme: "classic", knobs: [], presets: [] };
+                pedals.push(p);
+                selectPedal(p.id);
+            }
+        }
+
+        function deletePedal(id) {
+            // Find pedal to get name for confirmation
+            const p = pedals.find(pedal => pedal.id === id);
+            if (!p) return;
+
+            if(confirm(`Are you sure you want to delete "${p.name}"? This cannot be undone.`)) {
+                // 1. Remove from array
+                pedals = pedals.filter(pedal => pedal.id !== id);
+                
+                // 2. CHECK: Did we just delete the pedal currently on screen?
+                if(activePedal && activePedal.id === id) {
+                    activePedal = null; // Kill the reference
+                    document.getElementById('main').classList.add('hidden'); // Hide the UI
+                    document.getElementById('pedal-face').innerHTML = ''; // Clear the grid
+                    document.getElementById('pedal-title').innerText = 'Select a Pedal';
+                }
+                
+                initSidebar();
+            }
+        }
+
+        function renamePedal(newName) {
+            if(activePedal) {
+                activePedal.name = newName;
+                initSidebar(); 
+            }
+        }
+
+        function handlePedalRenameKey(e) {
+            if(e.key === 'Enter') {
+                e.preventDefault(); 
+                e.target.blur(); 
+            }
+        }
+
+        // --- 4. PEDAL FACE LOGIC ---
+        function renderPedalFace() {
+            const face = document.getElementById('pedal-face');
+            face.innerHTML = '';
+            face.className = isEditMode ? 'edit-mode' : '';
+
+            // Guard clause: If no pedal selected, stop rendering
+            if(!activePedal) return;
+
+            for (let i = 1; i <= 9; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'slot';
+                
+                slot.ondragover = (e) => { e.preventDefault(); if(isEditMode) slot.classList.add('drag-over'); };
+                slot.ondragleave = () => slot.classList.remove('drag-over');
+                slot.ondrop = (e) => handleDrop(e, i);
+
+                const knob = activePedal.knobs.find(k => k.pos === i);
+                if (knob) {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'knob-wrapper';
+                    wrapper.draggable = isEditMode;
+                    wrapper.ondragstart = () => { draggedKnobId = knob.id; };
+
+                    wrapper.innerHTML = `
+                        <div class="knob-name" contenteditable="true" 
+                             onblur="renameKnob(${knob.id}, this.innerText)" 
+                             onkeydown="handleKnobRenameKey(event)">${knob.name}</div>
+                        <div class="knob-container">
+                            <div class="knob-rotator" id="rot-${knob.id}" style="transform: rotate(${knob.val}deg)"></div>
+                            <div class="knob-display"><span id="txt-${knob.id}">${knob.val}</span>°</div>
+                            <input type="range" min="-150" max="150" value="${knob.val}" 
+                                   oninput="updateKnob(${knob.id}, this.value)" ${isEditMode ? 'disabled' : ''}>
+                        </div>
+                    `;
+                    slot.appendChild(wrapper);
+                }
+                face.appendChild(slot);
+            }
+        }
+
+        function updateKnob(id, val) {
+            const knob = activePedal.knobs.find(k => k.id === id);
+            knob.val = parseInt(val);
+            
+            const rotator = document.getElementById(`rot-${id}`);
+            
+            // NOTE: We removed the "manual-drag" logic. 
+            // The CSS transition is now ALWAYS active (0.4s).
+            // This creates the "chase" effect where the knob lags slightly behind the mouse.
+            
+            rotator.style.transform = `rotate(${val}deg)`;
+            document.getElementById(`txt-${id}`).innerText = val;
+            
+            const slider = rotator.parentNode.querySelector('input');
+            if(slider) slider.value = val;
+        }
+
+        function handleKnobRenameKey(e) {
+            if(e.key === 'Enter') {
+                e.preventDefault(); 
+                e.target.blur();
+            }
+        }
+
+        function renameKnob(id, newName) {
+            const knob = activePedal.knobs.find(k => k.id === id);
+            if(knob) knob.name = newName;
+        }
+
+        // --- 5. DRAG & DROP & PRESETS ---
+        function toggleEditMode() {
+            isEditMode = !isEditMode;
+            document.getElementById('editBtn').innerText = isEditMode ? "Layout: Editing" : "Layout: Locked";
+            renderPedalFace();
+        }
+
+        function handleDrop(e, targetPos) {
+            if (!isEditMode) return;
+            e.preventDefault();
+            
+            if (activePedal.knobs.some(k => k.pos === targetPos)) {
+                alert("Slot occupied!");
+                renderPedalFace(); 
+                return;
+            }
+
+            const knob = activePedal.knobs.find(k => k.id === draggedKnobId);
+            if(knob) {
+                knob.pos = targetPos;
+                renderPedalFace();
+            }
+        }
+
+        function addKnob() {
+            if(!activePedal) return;
+            for(let i=1; i<=9; i++) {
+                if(!activePedal.knobs.find(k => k.pos === i)) {
+                    let name = prompt("Knob Name:");
+                    if(name) {
+                        activePedal.knobs.push({ id: Date.now(), name: name, val: 0, pos: i });
+                        renderPedalFace();
+                    }
+                    return;
+                }
+            }
+            alert("Pedal face is full!");
+        }
+
+        function savePreset() {
+            let name = prompt("Preset Name:");
+            if(name) {
+                activePedal.presets.push({
+                    name: name,
+                    snapshot: activePedal.knobs.map(k => ({ id: k.id, val: k.val, pos: k.pos, name: k.name }))
+                });
+                renderPresets();
+            }
+        }
+
+        function deletePreset(index) {
+            if(confirm("Delete this preset?")) {
+                activePedal.presets.splice(index, 1);
+                renderPresets();
+            }
+        }
+
+        function renderPresets() {
+            const list = document.getElementById('preset-list');
+            list.innerHTML = '';
+            if(!activePedal) return;
+            
+            activePedal.presets.forEach((pr, index) => {
+                let chip = document.createElement('div');
+                chip.className = 'preset-chip';
+                chip.innerHTML = `
+                    <span class="preset-name">${pr.name}</span>
+                    <span class="preset-del" onclick="event.stopPropagation(); deletePreset(${index})">×</span>
+                `;
+                chip.querySelector('.preset-name').onclick = () => {
+                    pr.snapshot.forEach(savedKnob => {
+                        const currentKnob = activePedal.knobs.find(k => k.id === savedKnob.id);
+                        if(currentKnob) {
+                            updateKnob(currentKnob.id, savedKnob.val); 
+                        }
+                    });
+                };
+                list.appendChild(chip);
+            });
+        }
+
+        initSidebar();
+    </script>
+</body>
+</html>
