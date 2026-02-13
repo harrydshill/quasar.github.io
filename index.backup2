@@ -215,7 +215,6 @@
         <div class="tabs">
             <button class="tab active" onclick="switchTab('overview')">Overview</button>
             <button class="tab" onclick="switchTab('product')">Product</button>
-			<button class="tab" onclick="switchTab('marketing')">Marketing</button>
             <button class="tab" onclick="switchTab('control')">Control</button>
         </div>
     </div>
@@ -374,17 +373,7 @@
     <div id="control" class="tab-content">
         <section>
             <div class="container text-center" style="max-width: 800px;">
-                <a href__="control.html" class="btn">Go!</a>
-            </div>
-        </section>
-    </div>
-
-    <div id="marketing" class="tab-content">
-        <section>
-            <div class="container">
-                <div style="display: grid; gap: 2rem; margin-bottom: 2rem;">
-                    <img src="marketing.mp4" alt="Development 1">
-                </div>
+                <a href="control.html" class="btn">Go!</a>
             </div>
         </section>
     </div>
