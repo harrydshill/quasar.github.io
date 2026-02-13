@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Infinite Pedal Canvas: Shadow Tracking</title>
+    <title>Infinite Pedal Canvas: Persistent</title>
     <style>
         /* --- THEME VARIABLES --- */
         :root {
@@ -10,7 +10,7 @@
             --sidebar-bg: #1e1e1e;
             --grid-line: rgba(255, 255, 255, 0.05);
             --accent-color: #ff4444;
-            --ghost-color: #666666; /* Color of the physical position indicator */
+            --ghost-color: #666666;
             --text-main: #ffffff;
             --text-sub: #aaa;
             --item-bg: #333;
@@ -102,7 +102,6 @@
         .edit-mode .pedal-zone { cursor: grab; border-style: dashed; }
         .pedal-label { background: rgba(0,0,0,0.8); color: #fff; font-size: 12px; padding: 4px 10px; border-bottom-left-radius: 5px; border-bottom-right-radius: 5px; font-weight: bold; margin-top: -2px; pointer-events: none; }
 
-        /* --- KNOB STYLING (UPDATED) --- */
         .knob-wrapper { position: absolute; display: flex; flex-direction: column; align-items: center; width: 90px; pointer-events: auto; transition: top 0.1s, left 0.1s; }
         .edit-mode .knob-wrapper { cursor: move; }
         .knob-wrapper.assigned .knob-body { border-color: var(--accent-color); }
@@ -114,19 +113,16 @@
             transition: border-color 0.3s;
         }
 
-        /* COMMAND POINTER (User Input - Full Color) */
         .knob-pointer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }
         .knob-pointer.smooth { transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
         .knob-pointer::after { content: ''; position: absolute; top: 5px; left: 50%; width: 4px; height: 25px; background: var(--accent-color); transform: translateX(-50%); border-radius: 2px; }
 
-        /* GHOST POINTER (Telemetry - Grey) */
         .knob-ghost { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; }
         .knob-ghost.smooth { transition: transform 0.2s linear; }
         .knob-ghost::after { 
             content: ''; position: absolute; top: 8px; left: 50%; 
-            width: 4px; height: 25px; background: var(--ghost-color); /* Greyed out */
-            transform: translateX(-50%); border-radius: 2px; 
-            opacity: 0.6; /* Slight transparency */
+            width: 4px; height: 25px; background: var(--ghost-color); 
+            transform: translateX(-50%); border-radius: 2px; opacity: 0.6; 
         }
         
         .knob-value {
@@ -144,7 +140,6 @@
 
         #ghost-rect { position: absolute; border: 2px dashed var(--accent-color); background: rgba(255, 68, 68, 0.1); display: none; z-index: 5; pointer-events: none; }
 
-        /* --- MODAL --- */
         #modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 200; display: none; align-items: center; justify-content: center; }
         #modal-box { background: var(--sidebar-bg); padding: 20px; border-radius: 10px; border: 1px solid var(--item-border); width: 300px; color: var(--text-main); }
         input[type="text"] { width: 90%; padding: 8px; margin-bottom: 15px; background: var(--item-bg); border: 1px solid var(--item-border); color: var(--text-main); border-radius: 4px; }
@@ -156,6 +151,7 @@
         .fab { width: 50px; height: 50px; border-radius: 50%; background: var(--item-bg); color: var(--text-main); border: 2px solid var(--item-border); font-size: 20px; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; font-weight: bold;}
         .fab.active { background: var(--accent-color); border-color: white; color: white; }
         #theme-btn { position: absolute; top: 20px; right: 20px; z-index: 101; }
+        #reset-local-btn { position: absolute; bottom: 20px; left: 20px; z-index: 101; font-size: 10px; opacity: 0.5; background: none; border:none; color: var(--text-sub); cursor:pointer; }
     </style>
 </head>
 <body class="dark-mode">
@@ -171,6 +167,7 @@
     </div>
 
     <button class="fab" id="theme-btn" onclick="toggleTheme()">☀</button>
+    <button id="reset-local-btn" onclick="clearLocalStorage()">Reset All Data</button>
 
     <div id="app-container">
         <div id="sidebar">
@@ -205,8 +202,6 @@
         const GRID_SIZE = 50;
         const KNOB_OFFSET = 45; 
         const COLORS = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#1A535C', '#FF9F1C', '#D90368', '#9D4EDD', '#2EC4B6', '#F15BB5', '#00BBF9', '#8ac926', '#888888'];
-        
-        // --- API CONFIGURATION ---
         const API_BASE = "https://yhoshino.org"; 
 
         let state = {
@@ -216,27 +211,80 @@
             pedals: [], knobs: [],
             panning: false, panStartX: 0, panStartY: 0,
             openPedalIds: [],
-            unitMode: 0 
+            unitMode: 0,
+            hardwareSeq: 1 // Counter for K1, K2, K3
         };
 
-        // Hardware populated by backend
         let hardware = [];
         let telemetryStreams = {}; 
 
-        // --- 2. INIT & BACKEND ---
+        // --- 2. INIT & DATA PERSISTENCE ---
         function init() {
-            renderSidebar();
+            loadFromStorage(); // LOAD SAVED STATE
             initModal();
             updateTransform();
             connectAvailabilityStream();
+            
+            // Apply loaded theme
+            if(localStorage.getItem('theme') === 'light') {
+                document.body.classList.add('light-mode');
+                document.getElementById('theme-btn').innerText = '☾';
+            }
+        }
+
+        function saveToStorage() {
+            // Save relevant state to LocalStorage
+            const dataToSave = {
+                pedals: state.pedals,
+                knobs: state.knobs,
+                hardwareSeq: state.hardwareSeq,
+                hardware: hardware, // Save known hardware list
+                unitMode: state.unitMode
+            };
+            localStorage.setItem('pedalBuilderData', JSON.stringify(dataToSave));
+        }
+
+        function loadFromStorage() {
+            const saved = localStorage.getItem('pedalBuilderData');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    state.pedals = parsed.pedals || [];
+                    state.knobs = parsed.knobs || [];
+                    state.hardwareSeq = parsed.hardwareSeq || 1;
+                    state.unitMode = parsed.unitMode || 0;
+                    hardware = parsed.hardware || [];
+
+                    // Restore UI
+                    renderPedals();
+                    renderSidebar();
+                    
+                    // Re-render knobs and restart telemetry
+                    state.knobs.forEach(k => {
+                        renderKnob(k);
+                        subscribeTelemetry(k.hwId); // Restart streams!
+                    });
+                    
+                    // Restore unit label
+                    const labels = ['%', '°', 'r'];
+                    document.getElementById('unit-btn').innerText = labels[state.unitMode];
+
+                } catch (e) { console.error("Load Failed", e); }
+            }
+        }
+
+        function clearLocalStorage() {
+            if(confirm("Factory Reset? This clears all saved pedals and layouts.")) {
+                localStorage.removeItem('pedalBuilderData');
+                localStorage.removeItem('theme');
+                location.reload();
+            }
         }
 
         const viewport = document.getElementById('viewport');
         const canvas = document.getElementById('canvas');
 
-        // --- BACKEND LOGIC ---
-        
-        // 1. Availability Stream
+        // --- 3. SERVER LOGIC ---
         function connectAvailabilityStream() {
             const statusSpan = document.getElementById('conn-status');
             const evtSource = new EventSource(`${API_BASE}/v1/interface/available`);
@@ -250,45 +298,50 @@
                     const data = JSON.parse(cleanJson);
                     
                     if(data.event === 'add') {
-                        if(!hardware.find(h => h.id == data.id)) {
-                            hardware.push({ id: data.id, label: `Node ${data.id}` });
+                        // Check if we already know this hardware (either on grid or in bin)
+                        const existingInBin = hardware.find(h => h.id == data.id);
+                        const existingOnGrid = state.knobs.find(k => k.hwId == data.id);
+
+                        if(!existingInBin && !existingOnGrid) {
+                            // New Discovery -> Assign K number
+                            const label = `K${state.hardwareSeq++}`;
+                            hardware.push({ id: data.id, label: label });
                             renderSidebar();
+                            saveToStorage();
                         }
                     } else if(data.event === 'remove') {
+                        // Mark as offline in sidebar, but don't delete if on grid
+                        // For now we just filter from available list
                         hardware = hardware.filter(h => h.id != data.id);
                         renderSidebar();
+                        saveToStorage();
                     }
                 } catch(e) { console.error("JSON Error", e); }
             };
         }
 
-        // 2. Command Sending (Throttled)
         let lastSendTime = 0;
         function sendCommand(id, val) {
             const now = Date.now();
             if(now - lastSendTime < 50) return; 
             lastSendTime = now;
-
             fetch(`${API_BASE}/v1/interface/command`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id: id, value: parseFloat(val) })
             }).catch(e => console.error("Command failed", e));
+            saveToStorage(); // Auto-save on interaction
         }
 
-        // 3. Telemetry Streams
         function subscribeTelemetry(nodeId) {
             if(telemetryStreams[nodeId]) return; 
-
             const src = new EventSource(`${API_BASE}/v1/interface/telemetry?id=${nodeId}&interval=0.1`);
-            
             src.onmessage = (msg) => {
                 try {
-                    const data = JSON.parse(msg.data); // Expects {"id":..., "value":...}
+                    const data = JSON.parse(msg.data); 
                     updateKnobFromRemote(data.id, data.value);
                 } catch(e) { console.error("Telemetry Parse Error", e); }
             };
-
             telemetryStreams[nodeId] = src;
         }
 
@@ -299,28 +352,25 @@
             }
         }
 
-        // --- DUAL POINTER LOGIC ---
         function updateKnobFromRemote(hwId, val) {
             const knob = state.knobs.find(k => k.hwId == hwId);
             if(!knob) return;
-
-            // Update Physical State (Ghost)
             knob.actualVal = val;
-            
             const el = document.getElementById(`ui-${knob.id}`);
             if(el) {
-                // Rotate the GHOST pointer only
                 const ghost = el.querySelector('.knob-ghost');
                 ghost.classList.add('smooth'); 
                 ghost.style.transform = `rotate(${getRotationDeg(val)}deg)`;
-                
-                // We do NOT update the main pointer or input value here.
-                // This ensures the user's command is preserved visually until they let go or overlap.
             }
         }
 
-        // --- 3. HELPER FUNCTIONS ---
-        function toggleTheme() { document.body.classList.toggle('light-mode'); document.getElementById('theme-btn').innerText = document.body.classList.contains('light-mode') ? '☾' : '☀'; }
+        // --- 4. HELPERS & UI ---
+        function toggleTheme() { 
+            document.body.classList.toggle('light-mode'); 
+            const isLight = document.body.classList.contains('light-mode');
+            document.getElementById('theme-btn').innerText = isLight ? '☾' : '☀';
+            localStorage.setItem('theme', isLight ? 'light' : 'dark');
+        }
         
         function toggleUnits() {
             state.unitMode = (state.unitMode + 1) % 3;
@@ -330,6 +380,7 @@
                 const el = document.getElementById(`ui-${k.id}`);
                 if(el) el.querySelector('.knob-value').innerText = formatValue(k.val);
             });
+            saveToStorage();
         }
 
         function formatValue(val) {
@@ -337,11 +388,10 @@
             if(state.unitMode === 1) return Math.round((val * 300) - 150) + '°';
             if(state.unitMode === 2) return ((val * 5.234) - 2.617).toFixed(3) + 'r';
         }
-
         function getRotationDeg(val) { return (val * 300) - 150; }
         function snap(val) { return Math.round(val / GRID_SIZE) * GRID_SIZE; }
 
-        // --- 4. VIEWPORT LOGIC ---
+        // --- 5. INTERACTION LOGIC ---
         function startDrawing() { state.drawing = true; viewport.classList.add('drawing-cursor'); }
         function updateTransform() { canvas.style.transform = `translate(${state.pointX}px, ${state.pointY}px) scale(${state.scale})`; }
 
@@ -398,8 +448,11 @@
             updateTransform();
         };
 
-        // --- 7. PEDAL LOGIC ---
-        function createPedal(x, y, w, h) { state.pedals.push({ id: Date.now(), name: state.pendingName, color: state.pendingColor, x: x, y: y, width: w, height: h, presets: [] }); renderPedals(); renderSidebar(); checkAllKnobAssignments(); }
+        // --- 6. PEDAL LOGIC ---
+        function createPedal(x, y, w, h) { 
+            state.pedals.push({ id: Date.now(), name: state.pendingName, color: state.pendingColor, x: x, y: y, width: w, height: h, presets: [] }); 
+            renderPedals(); renderSidebar(); checkAllKnobAssignments(); saveToStorage();
+        }
 
         function renderPedals() {
             const layer = document.getElementById('pedal-layer'); layer.innerHTML = '';
@@ -426,33 +479,33 @@
                     const kEl = document.getElementById(`ui-${k.id}`); if(kEl) { kEl.style.left = k.x + 'px'; kEl.style.top = k.y + 'px'; }
                 });
             };
-            const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+            const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); saveToStorage(); };
             window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp);
         }
 
         function deletePedal(id) {
-            if(confirm("Delete this pedal?")) { state.pedals = state.pedals.filter(p => p.id !== id); renderPedals(); renderSidebar(); checkAllKnobAssignments(); }
+            if(confirm("Delete this pedal?")) { state.pedals = state.pedals.filter(p => p.id !== id); renderPedals(); renderSidebar(); checkAllKnobAssignments(); saveToStorage(); }
         }
 
-        // --- 8. PRESET LOGIC ---
+        // --- 7. PRESET LOGIC ---
         function togglePresetList(id) { if(state.openPedalIds.includes(id)) state.openPedalIds = state.openPedalIds.filter(i => i !== id); else state.openPedalIds.push(id); renderSidebar(); }
+        
         function savePreset(pedalId) {
             const name = prompt("Preset Name:"); if(!name) return;
             const pedal = state.pedals.find(p => p.id === pedalId);
             const pedalKnobs = state.knobs.filter(k => k.pedalId === pedalId);
             const snapshot = pedalKnobs.map(k => ({ id: k.id, val: k.val }));
-            pedal.presets.push({ id: Date.now(), name: name, data: snapshot }); renderSidebar();
+            pedal.presets.push({ id: Date.now(), name: name, data: snapshot }); renderSidebar(); saveToStorage();
         }
+
         function loadPreset(pedalId, presetId) {
             const pedal = state.pedals.find(p => p.id === pedalId); const preset = pedal.presets.find(pr => pr.id === presetId);
             preset.data.forEach(item => {
                 const liveKnob = state.knobs.find(k => k.id === item.id);
                 if(liveKnob) {
                     liveKnob.val = item.val;
-                    // Send to backend
                     sendCommand(liveKnob.hwId, item.val);
-                    
-                    // Update Main Command UI
+                    // Visual update
                     const el = document.getElementById(`ui-${liveKnob.id}`);
                     if(el) {
                         el.querySelector('.knob-value').innerText = formatValue(item.val);
@@ -464,12 +517,13 @@
                     }
                 }
             });
+            saveToStorage();
         }
         function deletePreset(pedalId, presetId) {
-            const pedal = state.pedals.find(p => p.id === pedalId); pedal.presets = pedal.presets.filter(pr => pr.id !== presetId); renderSidebar();
+            const pedal = state.pedals.find(p => p.id === pedalId); pedal.presets = pedal.presets.filter(pr => pr.id !== presetId); renderSidebar(); saveToStorage();
         }
 
-        // --- 9. KNOB LOGIC ---
+        // --- 8. KNOB LOGIC ---
         function checkAllKnobAssignments() { state.knobs.forEach(k => { const el = document.getElementById(`ui-${k.id}`); if (el) checkKnobAssignment(k, el); }); }
         function checkKnobAssignment(knob, knobElement) {
             const kx = knob.x + 45; const ky = knob.y + 45; let assignedId = null;
@@ -494,9 +548,11 @@
             if(!hw) return;
             const knob = { id: Date.now(), hwId: hw.id, name: hw.label, val: 0.5, actualVal: 0.5, x: x, y: y, pedalId: null };
             state.knobs.push(knob); 
+            // Remove from available hardware list if desired, but here we keep it in state.knobs
             renderSidebar(); 
             renderKnob(knob);
-            subscribeTelemetry(hw.id); 
+            subscribeTelemetry(hw.id);
+            saveToStorage();
         }
 
         function deleteKnob(id) {
@@ -505,6 +561,7 @@
             state.knobs = state.knobs.filter(k => k.id !== id);
             const el = document.getElementById(`ui-${id}`); if(el) el.remove();
             renderSidebar();
+            saveToStorage();
         }
 
         function renderKnob(knobData) {
@@ -513,19 +570,24 @@
             wrapper.innerHTML = `
                 <div class="knob-del-btn" onclick="deleteKnob(${knobData.id})">×</div>
                 <div class="knob-body">
-                    <div class="knob-ghost" style="transform: rotate(${getRotationDeg(knobData.actualVal)}deg)"></div>
+                    <div class="knob-ghost" style="transform: rotate(${getRotationDeg(knobData.actualVal || 0.5)}deg)"></div>
                     <div class="knob-pointer" style="transform: rotate(${getRotationDeg(knobData.val)}deg)"></div>
-                    
                     <div class="knob-value">${formatValue(knobData.val)}</div>
                     <input class="knob-input" type="range" min="0" max="1" step="0.001" value="${knobData.val}">
                 </div>
                 <div class="knob-name" contenteditable="true">${knobData.name}</div>
             `;
             checkKnobAssignment(knobData, wrapper);
+            
+            // Rename listener
+            const nameLabel = wrapper.querySelector('.knob-name');
+            nameLabel.onblur = (e) => { knobData.name = e.target.innerText; saveToStorage(); };
+
             wrapper.onmousedown = (e) => {
                 if(e.target.classList.contains('knob-del-btn')) return; 
                 if (state.isEditMode) { e.stopPropagation(); startDraggingKnob(e, wrapper, knobData); }
             };
+            
             const input = wrapper.querySelector('input'); 
             const pointer = wrapper.querySelector('.knob-pointer'); 
             const valDisplay = wrapper.querySelector('.knob-value');
@@ -533,7 +595,6 @@
             input.oninput = (e) => {
                 const val = parseFloat(e.target.value);
                 knobData.val = val; 
-                // Only move the command pointer
                 pointer.style.transform = `rotate(${getRotationDeg(val)}deg)`; 
                 valDisplay.innerText = formatValue(val);
                 sendCommand(knobData.hwId, val); 
@@ -549,16 +610,19 @@
                 el.style.left = data.x + 'px'; el.style.top = data.y + 'px';
                 checkKnobAssignment(data, el);
             };
-            const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+            const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); saveToStorage(); };
             window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp);
         }
 
-        // --- 10. SIDEBAR RENDER ---
+        // --- 9. SIDEBAR RENDER ---
         function renderSidebar() {
             const hwList = document.getElementById('hardware-list'); hwList.innerHTML = '';
+            
             hardware.forEach(hw => {
+                // Check if this specific hardware ID is already placed on the grid
                 const isUsed = state.knobs.find(k => k.hwId == hw.id);
-                const item = document.createElement('div'); item.className = `hardware-item ${isUsed ? 'used' : ''}`;
+                const item = document.createElement('div'); 
+                item.className = `hardware-item ${isUsed ? 'used' : ''}`;
                 const dot = `<div class="status-dot"></div>`;
                 item.innerHTML = `<span>${dot} ${hw.label}</span>`;
                 item.draggable = !isUsed;
