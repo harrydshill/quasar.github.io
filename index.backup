@@ -272,10 +272,7 @@
             <div class="container">
                 <div class="content-grid">
                     <div>
-                        <video controls poster="closeuprender.png" style="width: 100%; height: 24rem; object-fit: cover; border-radius: 0.75rem;">
-                            <source src="demo_video.mp4" type="video/mp4">
-                            Your browser does not support the video tag.
-                        </video>
+                        <img src="closeuprender.png" alt="Music studio setup">
                     </div>
                     <div>
                         <h2>The Era of Internet Connected Pedal Control</h2>
@@ -323,19 +320,19 @@
                 <p class="text-gray text-lg">
                     The future of wireless guitar tone control is coming [sneak peak below]...
                 </p>
-                
-                <div>
-                    <img src="render.png" alt="Mobile app interface">
-                </div>
-            
-                <div>
-                    <img src="20260213_094117.jpg" alt="Mobile app interface">
-                </div>
-                
+				
+				<div>
+					<img src="render.png" alt="Mobile app interface">
+				</div>
+			
+				<div>
+					<img src="20260213_094117.jpg" alt="Mobile app interface">
+				</div>
+				
             </div>
-            
-            
-            
+			
+			
+			
         </section>
     </div>
 
@@ -345,8 +342,8 @@
                 <h2 style="font-size: 2.5rem; font-weight: bold; margin-bottom: 1.5rem;">SoundSetter</h2>
                 <p class="text-gray text-lg" style="margin-bottom: 2rem;">
                     SoundSetter is a next-generation IoT guitar pedal that brings the convenience of the internet age to the guitar scene.
-                    Designed for modern musicians, it lets you shape your tone from anywhere — on stage, 
-                    in the studio, or on the go.
+					Designed for modern musicians, it lets you shape your tone from anywhere — on stage, 
+					in the studio, or on the go.
                 </p>
 
                 <div class="product-features">
