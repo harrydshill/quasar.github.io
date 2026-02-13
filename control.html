@@ -2,28 +2,29 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Infinite Pedal Canvas: Ultimate</title>
+    <title>Infinite Pedal Canvas: Shadow Tracking</title>
     <style>
-        /* --- THEME VARIABLES (Default Dark) --- */
+        /* --- THEME VARIABLES --- */
         :root {
             --app-bg: #121212;
             --sidebar-bg: #1e1e1e;
             --grid-line: rgba(255, 255, 255, 0.05);
-            --accent-color: #66863d;
+            --accent-color: #ff4444;
+            --ghost-color: #666666; /* Color of the physical position indicator */
             --text-main: #ffffff;
             --text-sub: #aaa;
-            --item-bg: #333;    
+            --item-bg: #333;
             --item-border: #444;
             --pedal-border: rgba(255,255,255,0.2);
             --grid-size: 50px;
         }
 
-        /* LIGHT THEME OVERRIDES */
         body.light-mode {
             --app-bg: #f0f0f0;
             --sidebar-bg: #ffffff;
             --grid-line: rgba(0, 0, 0, 0.1);
-            --accent-color: #66863d;
+            --accent-color: #007bff;
+            --ghost-color: #bbbbbb;
             --text-main: #222222;
             --text-sub: #666;
             --item-bg: #e9ecef;
@@ -47,7 +48,6 @@
         h3 { margin-top: 0; border-bottom: 1px solid var(--item-border); padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
         h4 { margin: 20px 0 10px 0; font-size: 14px; color: var(--text-sub); text-transform: uppercase; letter-spacing: 1px; display: flex; justify-content: space-between; align-items: center; }
 
-        /* Hardware Items */
         .hardware-item {
             background: var(--item-bg); padding: 8px 10px; margin-bottom: 6px; border-radius: 4px;
             cursor: grab; border: 1px solid var(--item-border); font-size: 13px; color: var(--text-main);
@@ -55,56 +55,32 @@
         }
         .hardware-item:hover { border-color: var(--accent-color); }
         .hardware-item.used { opacity: 0.5; pointer-events: none; filter: grayscale(1); }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #28a745; margin-right: 8px; }
 
-        /* Pedal List Items */
         .pedal-wrapper { margin-bottom: 8px; background: var(--item-bg); border-radius: 4px; overflow: hidden; border: 1px solid var(--item-border); }
-        
-        .pedal-header {
-            padding: 10px; display: flex; align-items: center; justify-content: space-between;
-            border-left: 5px solid transparent; cursor: pointer; color: var(--text-main);
-        }
+        .pedal-header { padding: 10px; display: flex; align-items: center; justify-content: space-between; border-left: 5px solid transparent; cursor: pointer; color: var(--text-main); }
         .pedal-header:hover { background: rgba(0,0,0,0.1); }
-        
         .pedal-name { font-weight: bold; font-size: 13px; flex-grow: 1; margin-left: 8px; }
-        
         .expand-arrow { font-size: 10px; transition: transform 0.2s; color: var(--text-sub); width: 20px; text-align: center; }
         .pedal-wrapper.open .expand-arrow { transform: rotate(90deg); }
 
-        .preset-container {
-            display: none; background: rgba(0,0,0,0.2); border-top: 1px solid var(--item-border);
-            padding: 8px; flex-direction: column; gap: 4px;
-        }
+        .preset-container { display: none; background: rgba(0,0,0,0.2); border-top: 1px solid var(--item-border); padding: 8px; flex-direction: column; gap: 4px; }
         .pedal-wrapper.open .preset-container { display: flex; }
-
-        .preset-item {
-            padding: 6px 10px; font-size: 12px; color: var(--text-sub); cursor: pointer;
-            border-radius: 3px; display: flex; justify-content: space-between;
-        }
+        .preset-item { padding: 6px 10px; font-size: 12px; color: var(--text-sub); cursor: pointer; border-radius: 3px; display: flex; justify-content: space-between; }
         .preset-item:hover { background: rgba(0,0,0,0.2); color: var(--text-main); }
         .preset-item.live { color: var(--accent-color); font-weight: bold; }
 
-        /* Buttons */
-        button.main-btn {
-            width: 100%; padding: 8px; background: var(--accent-color); color: white;
-            border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 10px;
-        }
+        button.main-btn { width: 100%; padding: 8px; background: var(--accent-color); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 10px; }
         button.main-btn:hover { opacity: 0.9; }
-        
-        button.sm-btn {
-            padding: 4px 8px; background: var(--item-border); border: none; color: var(--text-main); 
-            font-size: 11px; border-radius: 3px; cursor: pointer;
-        }
+        button.sm-btn { padding: 4px 8px; background: var(--item-border); border: none; color: var(--text-main); font-size: 11px; border-radius: 3px; cursor: pointer; }
         button.sm-btn:hover { opacity: 0.8; }
-        
         .icon-btn { cursor: pointer; opacity: 0.6; padding: 2px; }
         .icon-btn:hover { opacity: 1; color: var(--accent-color); }
 
-        /* --- VIEWPORT --- */
         #viewport { flex-grow: 1; position: relative; overflow: hidden; cursor: grab; }
         #viewport:active { cursor: grabbing; }
         #viewport.drawing-cursor { cursor: crosshair !important; }
 
-        /* --- CANVAS --- */
         #canvas {
             width: 4000px; height: 4000px;
             background-color: var(--app-bg);
@@ -113,32 +89,21 @@
                 linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
             background-size: var(--grid-size) var(--grid-size);
             position: absolute; transform-origin: 0 0; 
-            /* NO TRANSITION on transform by default to allow instant zoom. We add it only for reset. */
         }
 
-        /* --- LAYERS --- */
         #pedal-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
         #knob-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
 
-        /* --- PEDAL ZONE --- */
         .pedal-zone {
             position: absolute; border: 2px solid var(--pedal-border);
             border-radius: 8px; display: flex; align-items: flex-start; justify-content: center;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            pointer-events: auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1); pointer-events: auto;
         }
         .edit-mode .pedal-zone { cursor: grab; border-style: dashed; }
-        .pedal-label {
-            background: rgba(0,0,0,0.8); color: #fff; font-size: 12px; padding: 4px 10px;
-            border-bottom-left-radius: 5px; border-bottom-right-radius: 5px;
-            font-weight: bold; margin-top: -2px; pointer-events: none;
-        }
+        .pedal-label { background: rgba(0,0,0,0.8); color: #fff; font-size: 12px; padding: 4px 10px; border-bottom-left-radius: 5px; border-bottom-right-radius: 5px; font-weight: bold; margin-top: -2px; pointer-events: none; }
 
-        /* --- KNOB --- */
-        .knob-wrapper {
-            position: absolute; display: flex; flex-direction: column; align-items: center;
-            width: 90px; pointer-events: auto; transition: top 0.1s, left 0.1s;
-        }
+        /* --- KNOB STYLING (UPDATED) --- */
+        .knob-wrapper { position: absolute; display: flex; flex-direction: column; align-items: center; width: 90px; pointer-events: auto; transition: top 0.1s, left 0.1s; }
         .edit-mode .knob-wrapper { cursor: move; }
         .knob-wrapper.assigned .knob-body { border-color: var(--accent-color); }
 
@@ -148,74 +113,49 @@
             position: relative; box-shadow: 0 10px 20px rgba(0,0,0,0.3);
             transition: border-color 0.3s;
         }
-        .knob-pointer {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-        }
-        /* Smooth class added during preset load */
-        .knob-pointer.smooth { transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
 
-        .knob-pointer::after {
-            content: ''; position: absolute; top: 5px; left: 50%;
-            width: 4px; height: 20px; background: var(--accent-color);
-            transform: translateX(-50%); border-radius: 2px;
+        /* COMMAND POINTER (User Input - Full Color) */
+        .knob-pointer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }
+        .knob-pointer.smooth { transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .knob-pointer::after { content: ''; position: absolute; top: 5px; left: 50%; width: 4px; height: 25px; background: var(--accent-color); transform: translateX(-50%); border-radius: 2px; }
+
+        /* GHOST POINTER (Telemetry - Grey) */
+        .knob-ghost { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; }
+        .knob-ghost.smooth { transition: transform 0.2s linear; }
+        .knob-ghost::after { 
+            content: ''; position: absolute; top: 8px; left: 50%; 
+            width: 4px; height: 25px; background: var(--ghost-color); /* Greyed out */
+            transform: translateX(-50%); border-radius: 2px; 
+            opacity: 0.6; /* Slight transparency */
         }
+        
         .knob-value {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             display: flex; align-items: center; justify-content: center;
-            font-weight: bold; font-size: 16px; pointer-events: none; color: white;
+            font-weight: bold; font-size: 14px; pointer-events: none; color: white;
+            text-shadow: 0 1px 2px black;
         }
-        .knob-input {
-            position: absolute; top: 0; left: 0; width: 80px; height: 80px;
-            opacity: 0; cursor: ns-resize; pointer-events: auto;
-        }
+        .knob-input { position: absolute; top: 0; left: 0; width: 80px; height: 80px; opacity: 0; cursor: ns-resize; pointer-events: auto; z-index: 20; }
         .edit-mode .knob-input { pointer-events: none; } 
         .knob-name { margin-top: 5px; font-size: 11px; color: var(--text-sub); background: var(--item-bg); padding: 2px 4px; border-radius: 3px; border:1px solid var(--item-border); }
 
-        .knob-del-btn {
-            position: absolute; top: 0; right: 0; width: 20px; height: 20px;
-            background: red; color: white; border-radius: 50%; 
-            display: none; align-items: center; justify-content: center;
-            font-weight: bold; cursor: pointer; z-index: 10; font-size: 12px;
-        }
+        .knob-del-btn { position: absolute; top: 0; right: 0; width: 20px; height: 20px; background: red; color: white; border-radius: 50%; display: none; align-items: center; justify-content: center; font-weight: bold; cursor: pointer; z-index: 10; font-size: 12px; }
         .edit-mode .knob-del-btn { display: flex; }
 
-        /* --- GHOST --- */
-        #ghost-rect {
-            position: absolute; border: 2px dashed var(--accent-color);
-            background: rgba(255, 68, 68, 0.1); display: none; z-index: 5; pointer-events: none;
-        }
+        #ghost-rect { position: absolute; border: 2px dashed var(--accent-color); background: rgba(255, 68, 68, 0.1); display: none; z-index: 5; pointer-events: none; }
 
         /* --- MODAL --- */
-        #modal-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.7); z-index: 200; display: none;
-            align-items: center; justify-content: center;
-        }
-        #modal-box {
-            background: var(--sidebar-bg); padding: 20px; border-radius: 10px; border: 1px solid var(--item-border); width: 300px;
-            color: var(--text-main);
-        }
-        input[type="text"] {
-            width: 90%; padding: 8px; margin-bottom: 15px; background: var(--item-bg);
-            border: 1px solid var(--item-border); color: var(--text-main); border-radius: 4px;
-        }
+        #modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 200; display: none; align-items: center; justify-content: center; }
+        #modal-box { background: var(--sidebar-bg); padding: 20px; border-radius: 10px; border: 1px solid var(--item-border); width: 300px; color: var(--text-main); }
+        input[type="text"] { width: 90%; padding: 8px; margin-bottom: 15px; background: var(--item-bg); border: 1px solid var(--item-border); color: var(--text-main); border-radius: 4px; }
         .color-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 20px; }
-        .color-swatch {
-            width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;
-        }
+        .color-swatch { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
         .color-swatch.selected { border-color: var(--text-main); box-shadow: 0 0 10px var(--text-main); }
 
-        /* --- CONTROLS --- */
         #controls { position: fixed; bottom: 30px; right: 30px; display: flex; gap: 10px; z-index: 100; }
-        .fab {
-            width: 50px; height: 50px; border-radius: 50%; background: var(--item-bg); color: var(--text-main);
-            border: 2px solid var(--item-border); font-size: 20px; cursor: pointer;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center;
-        }
+        .fab { width: 50px; height: 50px; border-radius: 50%; background: var(--item-bg); color: var(--text-main); border: 2px solid var(--item-border); font-size: 20px; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; font-weight: bold;}
         .fab.active { background: var(--accent-color); border-color: white; color: white; }
-
         #theme-btn { position: absolute; top: 20px; right: 20px; z-index: 101; }
-
     </style>
 </head>
 <body class="dark-mode">
@@ -223,10 +163,8 @@
     <div id="modal-overlay">
         <div id="modal-box">
             <h3>Configure Pedal</h3>
-            <label>Name</label><br>
-            <input type="text" id="modal-name-input" placeholder="e.g. Overdrive">
-            <label>Color</label><br>
-            <div class="color-grid" id="modal-colors"></div>
+            <label>Name</label><br><input type="text" id="modal-name-input" placeholder="e.g. Overdrive">
+            <label>Color</label><br><div class="color-grid" id="modal-colors"></div>
             <button class="main-btn" onclick="confirmPedalCreation()">Start Drawing</button>
             <button class="main-btn" style="background:#555" onclick="closeModal()">Cancel</button>
         </div>
@@ -236,17 +174,13 @@
 
     <div id="app-container">
         <div id="sidebar">
-            <h3>
-                <span>🎛 Set Your Sound</span>
-            </h3>
-            
+            <h3><span>🎛 Builder</span></h3>
             <h4>Pedals</h4>
             <div id="pedal-list"></div>
             <button class="main-btn" onclick="openPedalModal()">+ Create New Pedal</button>
-
             <h4>
                 <span>Available Knobs</span>
-                <button class="sm-btn" style="width:auto" onclick="createHardware()">+ Add</button>
+                <span id="conn-status" style="font-size:10px; color: #888;">Connecting...</span>
             </h4>
             <div id="hardware-list"></div>
         </div>
@@ -260,6 +194,7 @@
         </div>
         
         <div id="controls">
+            <button class="fab" onclick="toggleUnits()" id="unit-btn" title="Toggle Units">%</button>
             <button class="fab" onclick="toggleEditMode()" id="edit-btn" title="Edit Mode">🔧</button>
             <button class="fab" onclick="resetView()" title="Center View">🎯</button>
         </div>
@@ -270,6 +205,9 @@
         const GRID_SIZE = 50;
         const KNOB_OFFSET = 45; 
         const COLORS = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#1A535C', '#FF9F1C', '#D90368', '#9D4EDD', '#2EC4B6', '#F15BB5', '#00BBF9', '#8ac926', '#888888'];
+        
+        // --- API CONFIGURATION ---
+        const API_BASE = "https://yhoshino.org"; 
 
         let state = {
             scale: 1, pointX: -1500, pointY: -1500, isEditMode: false,
@@ -278,132 +216,161 @@
             pedals: [], knobs: [],
             panning: false, panStartX: 0, panStartY: 0,
             openPedalIds: [],
-            hwCounter: 3 // Start after 3
+            unitMode: 0 
         };
 
-        // Independent Hardware List
-        let hardware = [
-            { id: 'hw_1', label: 'Knob 1' },
-            { id: 'hw_2', label: 'Knob 2' },
-            { id: 'hw_3', label: 'Knob 3' }
-        ];
+        // Hardware populated by backend
+        let hardware = [];
+        let telemetryStreams = {}; 
 
-        // --- 2. INIT ---
+        // --- 2. INIT & BACKEND ---
         function init() {
             renderSidebar();
             initModal();
             updateTransform();
+            connectAvailabilityStream();
         }
 
         const viewport = document.getElementById('viewport');
         const canvas = document.getElementById('canvas');
 
-        // --- 3. THEME LOGIC ---
-        function toggleTheme() {
-            document.body.classList.toggle('light-mode');
-            const btn = document.getElementById('theme-btn');
-            btn.innerText = document.body.classList.contains('light-mode') ? '☾' : '☀';
+        // --- BACKEND LOGIC ---
+        
+        // 1. Availability Stream
+        function connectAvailabilityStream() {
+            const statusSpan = document.getElementById('conn-status');
+            const evtSource = new EventSource(`${API_BASE}/v1/interface/available`);
+            
+            evtSource.onopen = () => { statusSpan.innerText = "Connected"; statusSpan.style.color = "#28a745"; };
+            evtSource.onerror = () => { statusSpan.innerText = "Offline"; statusSpan.style.color = "#ff4444"; };
+
+            evtSource.onmessage = (msg) => {
+                try {
+                    const cleanJson = msg.data.replace(/'/g, '"');
+                    const data = JSON.parse(cleanJson);
+                    
+                    if(data.event === 'add') {
+                        if(!hardware.find(h => h.id == data.id)) {
+                            hardware.push({ id: data.id, label: `Node ${data.id}` });
+                            renderSidebar();
+                        }
+                    } else if(data.event === 'remove') {
+                        hardware = hardware.filter(h => h.id != data.id);
+                        renderSidebar();
+                    }
+                } catch(e) { console.error("JSON Error", e); }
+            };
         }
 
-        // --- 4. HARDWARE MANAGEMENT ---
-        function createHardware() {
-            state.hwCounter++;
-            const newHw = { id: `hw_${Date.now()}`, label: `Knob ${state.hwCounter}` };
-            hardware.push(newHw);
-            renderSidebar();
+        // 2. Command Sending (Throttled)
+        let lastSendTime = 0;
+        function sendCommand(id, val) {
+            const now = Date.now();
+            if(now - lastSendTime < 50) return; 
+            lastSendTime = now;
+
+            fetch(`${API_BASE}/v1/interface/command`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id, value: parseFloat(val) })
+            }).catch(e => console.error("Command failed", e));
         }
 
-        function removeHardware(id) {
-            // Check if it is currently placed on the grid
-            const isUsed = state.knobs.find(k => k.hwId === id);
-            if(isUsed) {
-                alert("Cannot remove hardware that is currently placed on the grid. Delete the knob from the grid first.");
-                return;
+        // 3. Telemetry Streams
+        function subscribeTelemetry(nodeId) {
+            if(telemetryStreams[nodeId]) return; 
+
+            const src = new EventSource(`${API_BASE}/v1/interface/telemetry?id=${nodeId}&interval=0.1`);
+            
+            src.onmessage = (msg) => {
+                try {
+                    const data = JSON.parse(msg.data); // Expects {"id":..., "value":...}
+                    updateKnobFromRemote(data.id, data.value);
+                } catch(e) { console.error("Telemetry Parse Error", e); }
+            };
+
+            telemetryStreams[nodeId] = src;
+        }
+
+        function unsubscribeTelemetry(nodeId) {
+            if(telemetryStreams[nodeId]) {
+                telemetryStreams[nodeId].close();
+                delete telemetryStreams[nodeId];
             }
-            hardware = hardware.filter(h => h.id !== id);
-            renderSidebar();
         }
 
-        // --- 5. MODAL ---
-        function initModal() {
-            const grid = document.getElementById('modal-colors');
-            COLORS.forEach(c => {
-                const d = document.createElement('div');
-                d.className = 'color-swatch';
-                d.style.backgroundColor = c;
-                d.onclick = () => {
-                    document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
-                    d.classList.add('selected');
-                    state.pendingColor = c;
-                };
-                grid.appendChild(d);
+        // --- DUAL POINTER LOGIC ---
+        function updateKnobFromRemote(hwId, val) {
+            const knob = state.knobs.find(k => k.hwId == hwId);
+            if(!knob) return;
+
+            // Update Physical State (Ghost)
+            knob.actualVal = val;
+            
+            const el = document.getElementById(`ui-${knob.id}`);
+            if(el) {
+                // Rotate the GHOST pointer only
+                const ghost = el.querySelector('.knob-ghost');
+                ghost.classList.add('smooth'); 
+                ghost.style.transform = `rotate(${getRotationDeg(val)}deg)`;
+                
+                // We do NOT update the main pointer or input value here.
+                // This ensures the user's command is preserved visually until they let go or overlap.
+            }
+        }
+
+        // --- 3. HELPER FUNCTIONS ---
+        function toggleTheme() { document.body.classList.toggle('light-mode'); document.getElementById('theme-btn').innerText = document.body.classList.contains('light-mode') ? '☾' : '☀'; }
+        
+        function toggleUnits() {
+            state.unitMode = (state.unitMode + 1) % 3;
+            const labels = ['%', '°', 'r'];
+            document.getElementById('unit-btn').innerText = labels[state.unitMode];
+            state.knobs.forEach(k => {
+                const el = document.getElementById(`ui-${k.id}`);
+                if(el) el.querySelector('.knob-value').innerText = formatValue(k.val);
             });
         }
-        function openPedalModal() {
-            document.getElementById('modal-overlay').style.display = 'flex';
-            document.getElementById('modal-name-input').value = '';
-            document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
-            state.pendingColor = COLORS[0]; 
-            document.querySelectorAll('.color-swatch')[0].classList.add('selected');
-        }
-        function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; }
-        function confirmPedalCreation() {
-            const name = document.getElementById('modal-name-input').value;
-            if(!name) return alert("Enter a name");
-            state.pendingName = name; closeModal(); startDrawing();
+
+        function formatValue(val) {
+            if(state.unitMode === 0) return Math.round(val * 100) + '%';
+            if(state.unitMode === 1) return Math.round((val * 300) - 150) + '°';
+            if(state.unitMode === 2) return ((val * 5.234) - 2.617).toFixed(3) + 'r';
         }
 
-        // --- 6. VIEWPORT / ZOOM LOGIC ---
-        function startDrawing() { state.drawing = true; viewport.classList.add('drawing-cursor'); }
-        
-        function updateTransform() { 
-            canvas.style.transform = `translate(${state.pointX}px, ${state.pointY}px) scale(${state.scale})`; 
-        }
-        
+        function getRotationDeg(val) { return (val * 300) - 150; }
         function snap(val) { return Math.round(val / GRID_SIZE) * GRID_SIZE; }
+
+        // --- 4. VIEWPORT LOGIC ---
+        function startDrawing() { state.drawing = true; viewport.classList.add('drawing-cursor'); }
+        function updateTransform() { canvas.style.transform = `translate(${state.pointX}px, ${state.pointY}px) scale(${state.scale})`; }
 
         viewport.onmousedown = (e) => {
             if (e.target.closest('.knob-wrapper') || e.target.closest('.pedal-wrapper') || e.target.closest('#controls') || e.target.closest('.fab')) return;
-            
             if (state.isEditMode && e.target.closest('.pedal-zone')) {
-                const zone = e.target.closest('.pedal-zone');
-                const pedal = state.pedals.find(p => p.id == zone.dataset.id);
-                if(pedal) startDraggingPedal(e, pedal, zone);
-                return;
+                const zone = e.target.closest('.pedal-zone'); const pedal = state.pedals.find(p => p.id == zone.dataset.id);
+                if(pedal) startDraggingPedal(e, pedal, zone); return;
             }
-
-            // Calculations for Pan/Draw
             if (state.drawing) {
                 const rect = canvas.getBoundingClientRect();
-                const rawX = (e.clientX - rect.left) / state.scale;
-                const rawY = (e.clientY - rect.top) / state.scale;
+                const rawX = (e.clientX - rect.left) / state.scale; const rawY = (e.clientY - rect.top) / state.scale;
                 state.drawStartX = snap(rawX); state.drawStartY = snap(rawY);
                 const ghost = document.getElementById('ghost-rect');
-                ghost.style.display = 'block';
-                ghost.style.left = state.drawStartX + 'px'; ghost.style.top = state.drawStartY + 'px';
-                ghost.style.width = '0px'; ghost.style.height = '0px';
+                ghost.style.display = 'block'; ghost.style.left = state.drawStartX + 'px'; ghost.style.top = state.drawStartY + 'px'; ghost.style.width = '0px'; ghost.style.height = '0px';
             } else {
-                state.panning = true; 
-                state.panStartX = e.clientX - state.pointX; 
-                state.panStartY = e.clientY - state.pointY;
-                viewport.style.cursor = 'grabbing';
+                state.panning = true; state.panStartX = e.clientX - state.pointX; state.panStartY = e.clientY - state.pointY; viewport.style.cursor = 'grabbing';
             }
         };
 
         window.onmousemove = (e) => {
             if (state.drawing) {
                 const rect = canvas.getBoundingClientRect();
-                const rawX = (e.clientX - rect.left) / state.scale;
-                const rawY = (e.clientY - rect.top) / state.scale;
-                const w = snap(rawX) - state.drawStartX;
-                const h = snap(rawY) - state.drawStartY;
+                const rawX = (e.clientX - rect.left) / state.scale; const rawY = (e.clientY - rect.top) / state.scale;
+                const w = snap(rawX) - state.drawStartX; const h = snap(rawY) - state.drawStartY;
                 const ghost = document.getElementById('ghost-rect');
-                ghost.style.transform = `translate(${w < 0 ? w : 0}px, ${h < 0 ? h : 0}px)`;
-                ghost.style.width = Math.abs(w) + 'px'; ghost.style.height = Math.abs(h) + 'px';
+                ghost.style.transform = `translate(${w < 0 ? w : 0}px, ${h < 0 ? h : 0}px)`; ghost.style.width = Math.abs(w) + 'px'; ghost.style.height = Math.abs(h) + 'px';
             } else if (state.panning) {
-                state.pointX = e.clientX - state.panStartX; 
-                state.pointY = e.clientY - state.panStartY;
-                updateTransform();
+                state.pointX = e.clientX - state.panStartX; state.pointY = e.clientY - state.panStartY; updateTransform();
             }
         };
 
@@ -421,36 +388,18 @@
             state.panning = false; viewport.style.cursor = state.drawing ? 'crosshair' : 'grab';
         };
 
-        // --- 7. PRECISION ZOOM ---
         viewport.onwheel = (e) => {
             e.preventDefault();
-            
-            // 1. Get mouse offset relative to viewport
             const rect = viewport.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-
-            // 2. Calculate World coordinates of the mouse before zoom
-            const worldX = (mouseX - state.pointX) / state.scale;
-            const worldY = (mouseY - state.pointY) / state.scale;
-
-            // 3. Calculate New Scale
-            const delta = -Math.sign(e.deltaY) * 0.1;
-            const newScale = Math.min(Math.max(state.scale + delta, 0.5), 3.0);
-
-            // 4. Calculate new Translate to keep World Point under Mouse
-            state.pointX = mouseX - worldX * newScale;
-            state.pointY = mouseY - worldY * newScale;
-            state.scale = newScale;
-
+            const mouseX = e.clientX - rect.left; const mouseY = e.clientY - rect.top;
+            const worldX = (mouseX - state.pointX) / state.scale; const worldY = (mouseY - state.pointY) / state.scale;
+            const delta = -Math.sign(e.deltaY) * 0.1; const newScale = Math.min(Math.max(state.scale + delta, 0.5), 3.0);
+            state.pointX = mouseX - worldX * newScale; state.pointY = mouseY - worldY * newScale; state.scale = newScale;
             updateTransform();
         };
 
-        // --- 8. PEDAL LOGIC ---
-        function createPedal(x, y, w, h) {
-            state.pedals.push({ id: Date.now(), name: state.pendingName, color: state.pendingColor, x: x, y: y, width: w, height: h, presets: [] });
-            renderPedals(); renderSidebar(); checkAllKnobAssignments();
-        }
+        // --- 7. PEDAL LOGIC ---
+        function createPedal(x, y, w, h) { state.pedals.push({ id: Date.now(), name: state.pendingName, color: state.pendingColor, x: x, y: y, width: w, height: h, presets: [] }); renderPedals(); renderSidebar(); checkAllKnobAssignments(); }
 
         function renderPedals() {
             const layer = document.getElementById('pedal-layer'); layer.innerHTML = '';
@@ -467,17 +416,14 @@
             const startX = e.clientX; const startY = e.clientY; const initialX = pedal.x; const initialY = pedal.y;
             const childKnobs = state.knobs.filter(k => k.pedalId === pedal.id);
             const childInitialPos = childKnobs.map(k => ({ id: k.id, x: k.x, y: k.y }));
-
             const onMove = (me) => {
                 const dx = (me.clientX - startX) / state.scale; const dy = (me.clientY - startY) / state.scale;
                 const newX = snap(initialX + dx); const newY = snap(initialY + dy);
                 const gridDeltaX = newX - initialX; const gridDeltaY = newY - initialY;
                 pedal.x = newX; pedal.y = newY; el.style.left = newX + 'px'; el.style.top = newY + 'px';
                 childKnobs.forEach((k, index) => {
-                    const initPos = childInitialPos[index];
-                    k.x = initPos.x + gridDeltaX; k.y = initPos.y + gridDeltaY;
-                    const kEl = document.getElementById(`ui-${k.id}`);
-                    if(kEl) { kEl.style.left = k.x + 'px'; kEl.style.top = k.y + 'px'; }
+                    const initPos = childInitialPos[index]; k.x = initPos.x + gridDeltaX; k.y = initPos.y + gridDeltaY;
+                    const kEl = document.getElementById(`ui-${k.id}`); if(kEl) { kEl.style.left = k.x + 'px'; kEl.style.top = k.y + 'px'; }
                 });
             };
             const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
@@ -485,107 +431,77 @@
         }
 
         function deletePedal(id) {
-            if(confirm("Delete this pedal?")) {
-                state.pedals = state.pedals.filter(p => p.id !== id);
-                renderPedals(); renderSidebar(); checkAllKnobAssignments();
-            }
+            if(confirm("Delete this pedal?")) { state.pedals = state.pedals.filter(p => p.id !== id); renderPedals(); renderSidebar(); checkAllKnobAssignments(); }
         }
 
-        // --- 9. PRESET LOGIC ---
-        function togglePresetList(id) {
-            if(state.openPedalIds.includes(id)) {
-                state.openPedalIds = state.openPedalIds.filter(i => i !== id);
-            } else {
-                state.openPedalIds.push(id);
-            }
-            renderSidebar();
-        }
-
+        // --- 8. PRESET LOGIC ---
+        function togglePresetList(id) { if(state.openPedalIds.includes(id)) state.openPedalIds = state.openPedalIds.filter(i => i !== id); else state.openPedalIds.push(id); renderSidebar(); }
         function savePreset(pedalId) {
-            const name = prompt("Preset Name:");
-            if(!name) return;
+            const name = prompt("Preset Name:"); if(!name) return;
             const pedal = state.pedals.find(p => p.id === pedalId);
             const pedalKnobs = state.knobs.filter(k => k.pedalId === pedalId);
             const snapshot = pedalKnobs.map(k => ({ id: k.id, val: k.val }));
-            pedal.presets.push({ id: Date.now(), name: name, data: snapshot });
-            renderSidebar();
+            pedal.presets.push({ id: Date.now(), name: name, data: snapshot }); renderSidebar();
         }
-
         function loadPreset(pedalId, presetId) {
-            const pedal = state.pedals.find(p => p.id === pedalId);
-            const preset = pedal.presets.find(pr => pr.id === presetId);
+            const pedal = state.pedals.find(p => p.id === pedalId); const preset = pedal.presets.find(pr => pr.id === presetId);
             preset.data.forEach(item => {
                 const liveKnob = state.knobs.find(k => k.id === item.id);
                 if(liveKnob) {
                     liveKnob.val = item.val;
+                    // Send to backend
+                    sendCommand(liveKnob.hwId, item.val);
+                    
+                    // Update Main Command UI
                     const el = document.getElementById(`ui-${liveKnob.id}`);
                     if(el) {
-                        el.querySelector('.knob-value').innerText = item.val;
+                        el.querySelector('.knob-value').innerText = formatValue(item.val);
                         el.querySelector('input').value = item.val;
                         const ptr = el.querySelector('.knob-pointer');
                         ptr.classList.add('smooth');
-                        ptr.style.transform = `rotate(${item.val}deg)`;
+                        ptr.style.transform = `rotate(${getRotationDeg(item.val)}deg)`;
                         setTimeout(() => ptr.classList.remove('smooth'), 500);
                     }
                 }
             });
         }
-
         function deletePreset(pedalId, presetId) {
-            const pedal = state.pedals.find(p => p.id === pedalId);
-            pedal.presets = pedal.presets.filter(pr => pr.id !== presetId);
-            renderSidebar();
+            const pedal = state.pedals.find(p => p.id === pedalId); pedal.presets = pedal.presets.filter(pr => pr.id !== presetId); renderSidebar();
         }
 
-        // --- 10. KNOB LOGIC ---
-        function checkAllKnobAssignments() {
-            state.knobs.forEach(k => {
-                const el = document.getElementById(`ui-${k.id}`);
-                if (el) checkKnobAssignment(k, el);
-            });
-        }
-
+        // --- 9. KNOB LOGIC ---
+        function checkAllKnobAssignments() { state.knobs.forEach(k => { const el = document.getElementById(`ui-${k.id}`); if (el) checkKnobAssignment(k, el); }); }
         function checkKnobAssignment(knob, knobElement) {
-            const kx = knob.x + 45; const ky = knob.y + 45;
-            let assignedId = null;
-            for (let i = state.pedals.length - 1; i >= 0; i--) {
-                const p = state.pedals[i];
-                if (kx >= p.x && kx <= p.x + p.width && ky >= p.y && ky <= p.y + p.height) {
-                    assignedId = p.id; break;
-                }
-            }
-            knob.pedalId = assignedId;
-            const body = knobElement.querySelector('.knob-body');
-            
-            if (assignedId) {
-                knobElement.classList.add('assigned');
-                const pedal = state.pedals.find(p => p.id === assignedId);
-                body.style.borderColor = pedal ? pedal.color : '#fff';
-            } else {
-                knobElement.classList.remove('assigned');
-                body.style.borderColor = '#666';
-            }
+            const kx = knob.x + 45; const ky = knob.y + 45; let assignedId = null;
+            for (let i = state.pedals.length - 1; i >= 0; i--) { const p = state.pedals[i]; if (kx >= p.x && kx <= p.x + p.width && ky >= p.y && ky <= p.y + p.height) { assignedId = p.id; break; } }
+            knob.pedalId = assignedId; const body = knobElement.querySelector('.knob-body');
+            if (assignedId) { knobElement.classList.add('assigned'); const pedal = state.pedals.find(p => p.id === assignedId); body.style.borderColor = pedal ? pedal.color : '#fff'; }
+            else { knobElement.classList.remove('assigned'); body.style.borderColor = '#666'; }
         }
 
         canvas.ondragover = (e) => e.preventDefault();
         canvas.ondrop = (e) => {
-            e.preventDefault();
-            const hwId = e.dataTransfer.getData('hwId');
+            e.preventDefault(); const hwId = e.dataTransfer.getData('hwId');
             if (hwId) {
                 const rect = canvas.getBoundingClientRect();
-                const rawX = (e.clientX - rect.left) / state.scale;
-                const rawY = (e.clientY - rect.top) / state.scale;
+                const rawX = (e.clientX - rect.left) / state.scale; const rawY = (e.clientY - rect.top) / state.scale;
                 addKnob(hwId, snap(rawX) - KNOB_OFFSET, snap(rawY) - KNOB_OFFSET);
             }
         };
 
         function addKnob(hwId, x, y) {
-            const hw = hardware.find(h => h.id === hwId);
-            const knob = { id: Date.now(), hwId: hw.id, name: "Control", val: 0, x: x, y: y, pedalId: null };
-            state.knobs.push(knob); renderSidebar(); renderKnob(knob);
+            const hw = hardware.find(h => h.id == hwId);
+            if(!hw) return;
+            const knob = { id: Date.now(), hwId: hw.id, name: hw.label, val: 0.5, actualVal: 0.5, x: x, y: y, pedalId: null };
+            state.knobs.push(knob); 
+            renderSidebar(); 
+            renderKnob(knob);
+            subscribeTelemetry(hw.id); 
         }
 
         function deleteKnob(id) {
+            const knob = state.knobs.find(k => k.id === id);
+            if(knob) unsubscribeTelemetry(knob.hwId); 
             state.knobs = state.knobs.filter(k => k.id !== id);
             const el = document.getElementById(`ui-${id}`); if(el) el.remove();
             renderSidebar();
@@ -597,9 +513,11 @@
             wrapper.innerHTML = `
                 <div class="knob-del-btn" onclick="deleteKnob(${knobData.id})">×</div>
                 <div class="knob-body">
-                    <div class="knob-pointer" style="transform: rotate(${knobData.val}deg)"></div>
-                    <div class="knob-value">${knobData.val}</div>
-                    <input class="knob-input" type="range" min="-150" max="150" value="${knobData.val}">
+                    <div class="knob-ghost" style="transform: rotate(${getRotationDeg(knobData.actualVal)}deg)"></div>
+                    <div class="knob-pointer" style="transform: rotate(${getRotationDeg(knobData.val)}deg)"></div>
+                    
+                    <div class="knob-value">${formatValue(knobData.val)}</div>
+                    <input class="knob-input" type="range" min="0" max="1" step="0.001" value="${knobData.val}">
                 </div>
                 <div class="knob-name" contenteditable="true">${knobData.name}</div>
             `;
@@ -608,9 +526,17 @@
                 if(e.target.classList.contains('knob-del-btn')) return; 
                 if (state.isEditMode) { e.stopPropagation(); startDraggingKnob(e, wrapper, knobData); }
             };
-            const input = wrapper.querySelector('input'); const pointer = wrapper.querySelector('.knob-pointer'); const valDisplay = wrapper.querySelector('.knob-value');
+            const input = wrapper.querySelector('input'); 
+            const pointer = wrapper.querySelector('.knob-pointer'); 
+            const valDisplay = wrapper.querySelector('.knob-value');
+            
             input.oninput = (e) => {
-                knobData.val = e.target.value; pointer.style.transform = `rotate(${e.target.value}deg)`; valDisplay.innerText = e.target.value;
+                const val = parseFloat(e.target.value);
+                knobData.val = val; 
+                // Only move the command pointer
+                pointer.style.transform = `rotate(${getRotationDeg(val)}deg)`; 
+                valDisplay.innerText = formatValue(val);
+                sendCommand(knobData.hwId, val); 
             };
             document.getElementById('knob-layer').appendChild(wrapper);
         }
@@ -627,16 +553,14 @@
             window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp);
         }
 
-        // --- 11. SIDEBAR RENDER ---
+        // --- 10. SIDEBAR RENDER ---
         function renderSidebar() {
             const hwList = document.getElementById('hardware-list'); hwList.innerHTML = '';
             hardware.forEach(hw => {
-                const isUsed = state.knobs.find(k => k.hwId === hw.id);
+                const isUsed = state.knobs.find(k => k.hwId == hw.id);
                 const item = document.createElement('div'); item.className = `hardware-item ${isUsed ? 'used' : ''}`;
-                item.innerHTML = `
-                    <span>${hw.label}</span>
-                    ${!isUsed ? `<span class="icon-btn" onclick="removeHardware('${hw.id}')">×</span>` : ''}
-                `;
+                const dot = `<div class="status-dot"></div>`;
+                item.innerHTML = `<span>${dot} ${hw.label}</span>`;
                 item.draggable = !isUsed;
                 item.ondragstart = (e) => e.dataTransfer.setData('hwId', hw.id);
                 hwList.appendChild(item);
@@ -645,44 +569,27 @@
             const pedalList = document.getElementById('pedal-list'); pedalList.innerHTML = '';
             state.pedals.forEach(p => {
                 const isOpen = state.openPedalIds.includes(p.id);
-                const wrapper = document.createElement('div');
-                wrapper.className = `pedal-wrapper ${isOpen ? 'open' : ''}`;
-                
+                const wrapper = document.createElement('div'); wrapper.className = `pedal-wrapper ${isOpen ? 'open' : ''}`;
                 let presetHTML = `<div class="preset-item live">Current State</div>`;
                 p.presets.forEach(pr => {
-                    presetHTML += `
-                        <div class="preset-item" onclick="loadPreset(${p.id}, ${pr.id})">
-                            <span>${pr.name}</span>
-                            <span class="preset-del" onclick="event.stopPropagation(); deletePreset(${p.id}, ${pr.id})">×</span>
-                        </div>
-                    `;
+                    presetHTML += `<div class="preset-item" onclick="loadPreset(${p.id}, ${pr.id})"><span>${pr.name}</span><span class="preset-del" onclick="event.stopPropagation(); deletePreset(${p.id}, ${pr.id})">×</span></div>`;
                 });
-
                 wrapper.innerHTML = `
                     <div class="pedal-header" style="border-left-color:${p.color}" onclick="togglePresetList(${p.id})">
-                        <span class="expand-arrow">▶</span>
-                        <span class="pedal-name">${p.name}</span>
-                        <span class="icon-btn" onclick="event.stopPropagation(); deletePedal(${p.id})">🗑</span>
+                        <span class="expand-arrow">▶</span><span class="pedal-name">${p.name}</span><span class="icon-btn" onclick="event.stopPropagation(); deletePedal(${p.id})">🗑</span>
                     </div>
-                    <div class="preset-container">
-                        ${presetHTML}
-                        <button class="sm-btn" onclick="savePreset(${p.id})">+ Save Current State</button>
-                    </div>
+                    <div class="preset-container">${presetHTML}<button class="sm-btn" onclick="savePreset(${p.id})">+ Save Current State</button></div>
                 `;
                 pedalList.appendChild(wrapper);
             });
         }
 
         function toggleEditMode() { state.isEditMode = !state.isEditMode; document.getElementById('edit-btn').classList.toggle('active'); canvas.classList.toggle('edit-mode'); }
-        
-        function resetView() { 
-            // Enable transition just for the reset action for smoothness
-            canvas.style.transition = 'transform 0.5s ease';
-            state.pointX = -1500; state.pointY = -1500; state.scale = 1; 
-            updateTransform();
-            // Remove transition after it's done so zooming stays snappy
-            setTimeout(() => { canvas.style.transition = 'none'; }, 500);
-        }
+        function resetView() { canvas.style.transition = 'transform 0.5s ease'; state.pointX = -1500; state.pointY = -1500; state.scale = 1; updateTransform(); setTimeout(() => { canvas.style.transition = 'none'; }, 500); }
+        function initModal() { const grid = document.getElementById('modal-colors'); COLORS.forEach(c => { const d = document.createElement('div'); d.className = 'color-swatch'; d.style.backgroundColor = c; d.onclick = () => { document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected')); d.classList.add('selected'); state.pendingColor = c; }; grid.appendChild(d); }); }
+        function openPedalModal() { document.getElementById('modal-overlay').style.display = 'flex'; document.getElementById('modal-name-input').value = ''; document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected')); state.pendingColor = COLORS[0]; document.querySelectorAll('.color-swatch')[0].classList.add('selected'); }
+        function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; }
+        function confirmPedalCreation() { const name = document.getElementById('modal-name-input').value; if(!name) return alert("Enter a name"); state.pendingName = name; closeModal(); startDrawing(); }
 
         init();
     </script>
